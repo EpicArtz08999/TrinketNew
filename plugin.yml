@@ -1,4 +1,4 @@
-name: Trinket
+name: TrinketPM
 main: Trinket\Trinket
 version: 0.0.4
 api: [1.0.0, 2.0.0, 3.0.0-ALPHA5]

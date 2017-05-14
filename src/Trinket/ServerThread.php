@@ -11,14 +11,15 @@ use pocketmine\Server;
 
 class ServerThread extends \Thread{
 
-	private $config;
 	private $socket;
 	private $workerId;
 	private $logger;
 	private $isPluginEnabled;
 	private $hasErrors;
+	private $password;
 
 	private static $connected;
+	private static $queue; //needs to be implemented
 
 	public function __construct($array, \Logger $logger)
 	{
@@ -26,6 +27,7 @@ class ServerThread extends \Thread{
 		$this->workerId = mt_rand(5000, 10000);
 		$this->logger = $logger;
 		$this->hasErrors = false;
+		$this->password = "testPassword"; //implement random password generation (probs uniqid())
 
 		$host = isset($array["ip"]) ? $array["ip"] : "0.0.0.0";
 		$host = str_replace(" ", "", $array["ip"]);
@@ -55,12 +57,13 @@ class ServerThread extends \Thread{
 
 	public function run()
 	{
+		//TODO ADD A QUEUE FOR PACKETS TO BE SENT EX) CHAT PACKETS FOR MULTI SERVER CHATTING
 		while($this->isPluginEnabled)
 		{
 			$read = @socket_read($this->socket, 1024, PHP_NORMAL_READ);
 			if(!$read)
 			{
-				continue; //invalid socket and/or data
+				continue;
 			}
 
 			$input = $read;
@@ -72,55 +75,64 @@ class ServerThread extends \Thread{
 			$input = json_decode($read);
 			if(!is_array($input))
 			{
-				continue; //invalid data
+				continue;
 			}
 
-			switch($input["id"])
+			$id = isset($input["id"]) ? $input["id"] : Info::PACKET_UNKNOWN;
+			switch($id)
 			{
-				case 0x068: //connection accept packet
+				case Info::PACKET_UNKNOWN:
+					var_dump($input);
+					continue;
+				break;
+				case Info::DUMMY_PACKET:
+					continue;
+				break;
+				case PACKET_LOGIN_ACCEPT:
 					if(self::$connected)
 					{
-						continue;//already connected to host server?
+						continue;
 					}
 
-					if($input["data"])//connection accepted
+					if($input["data"])
 					{
 						self::$connected = true;
 						continue;
 					}
 
-					//connection denied
 					$error = $input["error"];
-					if($error === 01001010) //invalid password
+					if($error === Info::ERROR_INVALID_PASSWORD)
 					{
-						exit(0); //todo disable plugin
+						exit(0);
 					}
-					elseif($error === 10111000) //invalid array
+					elseif($error === Info::ERROR_INVALID_DATA)
 					{
 						$this->connect(); //attempt a new connection
 						continue;
 					}
 				break;
-				case 0x082: //disconnect packet
+				case Info::PACKET_DISCONNECT:
 					if(!self::$connected)
 					{
-						continue;//already disconnected from host server?
+						continue;
 					}
 
 					$reason = $data["reason"];
-					if($reason === 11000001) //forced disconnect (plugin crash or server crash)
+					if($reason === Info::TYPE_DISCONNECT_FORCED)
 					{
-						continue; //todo: idek?
+						$this->kill();
+						continue;
 					}
-					elseif($reason === 10110101) //planned disconnect (server restarting)
+					elseif($reason === Info::TYPE_DISCONNECT_PLANNED)
 					{
-						continue; //todo: wait aprox 15 seconds and try to reconnect
+						$this->kill();
+						continue;
 					}
 				break;
-				case 0x076: //chat packet
+				case Info::PACKET_CHAT:
 					if(!self::$connected)
 					{
-						continue; //not connected to host server stop sending me random packets
+						continue;
 					}
 
 					$msg = $data["chat"];
@@ -132,13 +144,18 @@ class ServerThread extends \Thread{
 
 					$this->sendChat($msg, $players);
 				break;
+				default:
+					continue; //todo unknown packet processing
+				break;
 			}
 		}
+		exit(0);
 	}
 
 	public function kill()
 	{
 		$this->isPluginEnabled = false;
+		@socket_close($this->socket);
 	}
 
 	public function getLogger()
@@ -151,13 +168,23 @@ class ServerThread extends \Thread{
 		return $this->hasErrors;
 	}
 
+	public function getPassword() : String
+	{
+		return $this->password;
+	}
+
 	public function connect()
 	{
-		$pk = ["id" => 0x068] //todo convert to packet system similar to PocketMine's
+		$pk = ["id" => Info::PACKET_LOGIN_ACCEPT, "password" => $this->getPassword()] //todo convert to packet system similar to PocketMine's
 		$write = @socket_write($this->socket, $pk);
 		if(!$write)
 		{
 			//todo
 		}
+	}
+
+	public function sendChat()
+	{
+		return; //todo
 	}
 }
