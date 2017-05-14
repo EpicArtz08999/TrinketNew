@@ -27,7 +27,7 @@ class ServerThread extends \Thread{
 		$this->workerId = mt_rand(5000, 10000);
 		$this->logger = $logger;
 		$this->hasErrors = false;
-		$this->password = "testPassword"; //implement random password generation (probs uniqid())
+		$this->password = $array["password"];
 
 		$host = isset($array["ip"]) ? $array["ip"] : "0.0.0.0";
 		$host = str_replace(" ", "", $array["ip"]);
@@ -57,7 +57,7 @@ class ServerThread extends \Thread{
 
 	public function run()
 	{
-		//TODO ADD A QUEUE FOR PACKETS TO BE SENT EX) CHAT PACKETS FOR MULTI SERVER CHATTING
+		//TODO ADD A QUEUE FOR PACKETS TO BE SENT EX) CHAT PACKETS FOR MULTI SERVER CHATTING: MIGHT BE ADDED ON NEW THREAD DONT WANT THIS 2 MESSY
 		while($this->isPluginEnabled)
 		{
 			$read = @socket_read($this->socket, 1024, PHP_NORMAL_READ);
@@ -78,8 +78,12 @@ class ServerThread extends \Thread{
 				continue;
 			}
 
-			$id = isset($input["id"]) ? $input["id"] : Info::PACKET_UNKNOWN;
-			switch($id)
+			if(!isset($input["id"]))
+			{
+				continue;
+			}
+
+			switch($input["id"])
 			{
 				case Info::PACKET_UNKNOWN:
 					var_dump($input);
@@ -107,7 +111,7 @@ class ServerThread extends \Thread{
 					}
 					elseif($error === Info::ERROR_INVALID_DATA)
 					{
-						$this->connect(); //attempt a new connection
+						$this->connect();
 						continue;
 					}
 				break;
@@ -136,7 +140,7 @@ class ServerThread extends \Thread{
 					}
 
 					$msg = $data["chat"];
-					$players = $data["selection"]; //selects OP or non OP players TODO: allow player list to be sent a certian players to be selected
+					$players = $data["selection"];
 					if($msg === "" or empty($msg))
 					{
 						continue;
@@ -145,7 +149,7 @@ class ServerThread extends \Thread{
 					$this->sendChat($msg, $players);
 				break;
 				default:
-					continue; //todo unknown packet processing
+					continue;
 				break;
 			}
 		}
@@ -175,16 +179,20 @@ class ServerThread extends \Thread{
 
 	public function connect()
 	{
-		$pk = ["id" => Info::PACKET_LOGIN_ACCEPT, "password" => $this->getPassword()] //todo convert to packet system similar to PocketMine's
+		$pk = json_encode(["id" => Info::PACKET_LOGIN_ACCEPT, "password" => $this->getPassword()])
 		$write = @socket_write($this->socket, $pk);
 		if(!$write)
 		{
-			//todo
+			exit(0);
 		}
 	}
 
-	public function sendChat()
+	public function sendChat($msg, $players)
 	{
-		return; //todo
+		if(!$players === Info::TYPE_PLAYERS_ALL or !$players === Info::TYPE_PLAYERS_OP)
+		{
+			return;
+		}
+		//TODO: BROADCAST MESSAGE TO ENTIRE SERVER. WILL USE A QUEUE WITH A PLUGINTASK TO SEND A FEW MESSAGES AT ONCE (LESS LAG)
 	}
 }
