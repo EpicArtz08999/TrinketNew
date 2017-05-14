@@ -28,6 +28,7 @@ class ServerThread extends \Thread{
 		$this->logger = $logger;
 		$this->hasErrors = false;
 		$this->password = $array["password"];
+		$this->serverId = $array["id"];
 
 		$host = isset($array["ip"]) ? $array["ip"] : "0.0.0.0";
 		$host = str_replace(" ", "", $array["ip"]);
@@ -179,7 +180,7 @@ class ServerThread extends \Thread{
 
 	public function connect()
 	{
-		$pk = json_encode(["id" => Info::PACKET_LOGIN_ACCEPT, "password" => $this->getPassword()])
+		$pk = json_encode(["id" => Info::PACKET_LOGIN_ACCEPT, "password" => $this->getPassword(), "serverId" => $this->serverId]);
 		$write = @socket_write($this->socket, $pk);
 		if(!$write)
 		{
